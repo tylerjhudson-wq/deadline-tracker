@@ -1,0 +1,63 @@
+/* Deadline Tracker Custom Styles */
+
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+/* Dashboard cards */
+.card {
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    border-radius: 8px;
+}
+
+.card.text-bg-primary,
+.card.text-bg-danger,
+.card.text-bg-warning,
+.card.text-bg-info,
+.card.text-bg-success {
+    border: none;
+}
+
+.card .display-6 {
+    font-weight: 700;
+}
+
+/* Tables */
+.table th {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+}
+
+/* Breadcrumbs */
+.breadcrumb {
+    background: none;
+    padding: 0;
+    margin-bottom: 0.5rem;
+}
+
+/* Forms */
+.form-label {
+    font-weight: 500;
+}
+
+/* Matter detail status icons */
+.bi-check-circle-fill { font-size: 1.1rem; }
+.bi-exclamation-triangle-fill { font-size: 1.1rem; }
+.bi-clock { font-size: 1.1rem; }

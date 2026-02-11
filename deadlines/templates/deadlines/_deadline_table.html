@@ -1,0 +1,48 @@
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Date</th>
+                <th>Days</th>
+                <th>Type</th>
+                <th>Matter</th>
+                <th>Client</th>
+                <th>Property</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dl in deadlines %}
+            <tr>
+                <td>
+                    <span class="badge bg-{{ dl.urgency_color }}">
+                        {{ dl.date|date:"M j, Y" }}
+                    </span>
+                </td>
+                <td>
+                    {% if dl.days_until < 0 %}
+                        <span class="text-danger fw-bold">{{ dl.days_until|cut:"-" }}d overdue</span>
+                    {% elif dl.days_until == 0 %}
+                        <span class="text-danger fw-bold">TODAY</span>
+                    {% else %}
+                        {{ dl.days_until }}d
+                    {% endif %}
+                </td>
+                <td>{{ dl.deadline_type.name }}</td>
+                <td>
+                    <a href="{% url 'deadlines:matter_detail' dl.matter.pk %}">
+                        {{ dl.matter.title }}
+                    </a>
+                </td>
+                <td>{{ dl.matter.client.name }}</td>
+                <td><small class="text-muted">{{ dl.matter.property_address }}</small></td>
+                <td>
+                    <a href="{% url 'deadlines:deadline_edit' dl.pk %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

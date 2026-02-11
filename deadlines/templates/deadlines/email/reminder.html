@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; }
+        .header { background-color: #2c3e50; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; }
+        .deadline-box { border: 2px solid #e74c3c; border-radius: 8px; padding: 15px; margin: 15px 0; background-color: #fdf2f2; }
+        .deadline-box.warning { border-color: #f39c12; background-color: #fef9e7; }
+        .deadline-box.normal { border-color: #27ae60; background-color: #f0faf4; }
+        .date { font-size: 24px; font-weight: bold; color: #e74c3c; }
+        .footer { background-color: #ecf0f1; padding: 15px; text-align: center; font-size: 12px; color: #7f8c8d; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 5px 10px; }
+        .label { font-weight: bold; color: #555; width: 120px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Deadline Reminder</h1>
+    </div>
+
+    <div class="content">
+        <p>Dear {{ client_name }},</p>
+
+        <p>This is a reminder about an upcoming deadline for your matter:</p>
+
+        <div class="deadline-box {% if days_until > 14 %}normal{% elif days_until > 3 %}warning{% endif %}">
+            <p class="date">
+                {% if days_until == 0 %}
+                    TODAY — {{ deadline.date|date:"l, F j, Y" }}
+                {% elif days_until == 1 %}
+                    TOMORROW — {{ deadline.date|date:"l, F j, Y" }}
+                {% else %}
+                    {{ days_until }} days — {{ deadline.date|date:"l, F j, Y" }}
+                {% endif %}
+            </p>
+
+            <table>
+                <tr>
+                    <td class="label">Deadline:</td>
+                    <td>{{ deadline.deadline_type.name }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Matter:</td>
+                    <td>{{ deadline.matter.title }}</td>
+                </tr>
+                {% if deadline.matter.property_address %}
+                <tr>
+                    <td class="label">Property:</td>
+                    <td>{{ deadline.matter.property_address }}</td>
+                </tr>
+                {% endif %}
+                {% if deadline.description %}
+                <tr>
+                    <td class="label">Details:</td>
+                    <td>{{ deadline.description }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+
+        <p>If you have any questions or need to discuss this deadline, please don't hesitate to contact us.</p>
+
+        <p>Best regards,<br>Your Legal Team</p>
+    </div>
+
+    <div class="footer">
+        <p>This is an automated reminder from Deadline Tracker.<br>
+        Please do not reply directly to this email.</p>
+    </div>
+</body>
+</html>

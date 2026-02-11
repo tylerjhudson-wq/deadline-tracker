@@ -1,0 +1,159 @@
+{% extends "deadlines/base.html" %}
+{% load humanize %}
+
+{% block title %}{{ matter.title }} — Deadline Tracker{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'deadlines:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item active">{{ matter.title }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h1>{{ matter.title }}</h1>
+        <p class="text-muted mb-1">
+            <span class="badge bg-{% if matter.matter_type == 'transaction' %}primary{% else %}success{% endif %}">
+                {{ matter.get_matter_type_display }}
+            </span>
+            <span class="badge bg-{% if matter.status == 'active' %}success{% elif matter.status == 'on_hold' %}warning{% else %}secondary{% endif %}">
+                {{ matter.get_status_display }}
+            </span>
+        </p>
+    </div>
+    <div>
+        <a href="{% url 'deadlines:matter_edit' matter.pk %}" class="btn btn-outline-secondary">
+            <i class="bi bi-pencil"></i> Edit Matter
+        </a>
+        <a href="{% url 'deadlines:deadline_add' matter.pk %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Deadline
+        </a>
+    </div>
+</div>
+
+<!-- Matter Info -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <strong>Client:</strong> {{ matter.client.name }}<br>
+                <strong>Email:</strong> <a href="mailto:{{ matter.client.email }}">{{ matter.client.email }}</a>
+            </div>
+            <div class="col-md-4">
+                <strong>Property:</strong> {{ matter.property_address|default:"—" }}<br>
+                <strong>Created:</strong> {{ matter.created_at|date:"M j, Y" }}
+            </div>
+            <div class="col-md-4">
+                {% if matter.asana_project_id %}
+                <strong>Asana Project:</strong> <code>{{ matter.asana_project_id }}</code>
+                {% endif %}
+                {% if matter.notes %}
+                <strong>Notes:</strong> {{ matter.notes }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overdue Deadlines -->
+{% with overdue=matter.overdue_deadlines %}
+{% if overdue %}
+<div class="alert alert-danger">
+    <h5><i class="bi bi-exclamation-triangle-fill"></i> {{ overdue|length }} Overdue Deadline{{ overdue|length|pluralize }}</h5>
+</div>
+{% endif %}
+{% endwith %}
+
+<!-- Deadlines Timeline -->
+<h3 class="mb-3">Deadlines</h3>
+
+{% if deadlines %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Days</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Reminders</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dl in deadlines %}
+            <tr class="{% if dl.status == 'completed' %}table-light text-muted{% elif dl.urgency == 'overdue' %}table-danger{% elif dl.urgency == 'critical' %}table-warning{% endif %}">
+                <td>
+                    {% if dl.status == 'completed' %}
+                        <i class="bi bi-check-circle-fill text-success"></i>
+                    {% elif dl.status == 'extended' %}
+                        <i class="bi bi-arrow-clockwise text-info"></i>
+                    {% elif dl.status == 'waived' %}
+                        <i class="bi bi-x-circle text-muted"></i>
+                    {% elif dl.days_until < 0 %}
+                        <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                    {% else %}
+                        <i class="bi bi-clock text-{{ dl.urgency_color }}"></i>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="{% if dl.status != 'completed' %}badge bg-{{ dl.urgency_color }}{% endif %}">
+                        {{ dl.date|date:"M j, Y" }}
+                    </span>
+                </td>
+                <td>
+                    {% if dl.status == 'completed' %}
+                        <span class="text-muted">Done</span>
+                    {% elif dl.days_until < 0 %}
+                        <span class="text-danger fw-bold">{{ dl.days_until|cut:"-" }}d overdue</span>
+                    {% elif dl.days_until == 0 %}
+                        <span class="text-danger fw-bold">TODAY</span>
+                    {% else %}
+                        {{ dl.days_until }}d
+                    {% endif %}
+                </td>
+                <td><strong>{{ dl.deadline_type.name }}</strong></td>
+                <td>{{ dl.description|default:"—" }}</td>
+                <td>
+                    <small class="text-muted">
+                        {% for d in dl.effective_reminder_days %}{{ d }}d{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </small>
+                    {% if dl.reminder_logs.exists %}
+                        <br><small class="text-success">
+                            <i class="bi bi-envelope-check"></i> {{ dl.reminder_logs.count }} sent
+                        </small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if dl.status == 'upcoming' %}
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'deadlines:deadline_edit' dl.pk %}" class="btn btn-outline-secondary" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="post" action="{% url 'deadlines:deadline_complete' dl.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-success" title="Mark Complete">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-4 text-muted">
+    <p>No deadlines yet.</p>
+    <a href="{% url 'deadlines:deadline_add' matter.pk %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Add First Deadline
+    </a>
+</div>
+{% endif %}
+
+{% endblock %}
