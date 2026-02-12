@@ -168,33 +168,8 @@ def deadline_complete(request, pk):
 
 
 def setup_admin(request):
-    """One-time setup: create admin user and seed data. Visit /setup/ to run."""
-    from .management.commands.seed_data import DEADLINE_TYPES, DEFAULT_REMINDER_DAYS
-
-    output = []
-
-    # Seed deadline types
-    for matter_type, type_names in DEADLINE_TYPES.items():
-        for name in type_names:
-            obj, created = DeadlineType.objects.get_or_create(
-                name=name,
-                matter_type=matter_type,
-                defaults={'default_reminder_days': DEFAULT_REMINDER_DAYS},
-            )
-            if created:
-                output.append(f'Created deadline type: {name}')
-
-    # Create/reset admin user
-    username = os.getenv('DJANGO_ADMIN_USERNAME', 'admin')
-    password = os.getenv('DJANGO_ADMIN_PASSWORD', 'changeme123')
-    User.objects.filter(username=username).delete()
-    user = User.objects.create_superuser(username=username, email='admin@firm.com', password=password)
-    output.append(f'\nAdmin user created: username="{username}", has_password={user.has_usable_password()}')
-    output.append(f'Total users in database: {User.objects.count()}')
-    output.append(f'\nNow go to /admin/ and log in with username "{username}" and the password you set in DJANGO_ADMIN_PASSWORD')
-    output.append(f'(If you did not set DJANGO_ADMIN_PASSWORD, the default password is: changeme123)')
-
-    return HttpResponse('\n'.join(output), content_type='text/plain')
+    """Setup page disabled after initial use."""
+    return HttpResponse('Setup already completed. Use /admin/ to manage the app.', content_type='text/plain')
 
 
 def client_create(request):
