@@ -12,4 +12,5 @@ urlpatterns = [
     path('deadline/<int:pk>/edit/', views.deadline_edit, name='deadline_edit'),
     path('deadline/<int:pk>/complete/', views.deadline_complete, name='deadline_complete'),
     path('client/new/', views.client_create, name='client_create'),
+    path('setup/', views.setup_admin, name='setup_admin'),
 ]
