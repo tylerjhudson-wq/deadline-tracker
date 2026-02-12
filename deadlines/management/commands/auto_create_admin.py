@@ -16,22 +16,21 @@ class Command(BaseCommand):
         password = os.getenv('DJANGO_ADMIN_PASSWORD', '')
         email = os.getenv('DJANGO_ADMIN_EMAIL', 'admin@firm.com')
 
+        self.stdout.write(f'Admin setup: username="{username}", password length={len(password)}, email="{email}"')
+
         if not password:
             self.stdout.write('DJANGO_ADMIN_PASSWORD not set, skipping admin creation.')
             return
 
-        user, created = User.objects.get_or_create(
+        # Delete all existing users and start fresh
+        User.objects.all().delete()
+        self.stdout.write('Cleared all existing users.')
+
+        user = User.objects.create_superuser(
             username=username,
-            defaults={'email': email, 'is_staff': True, 'is_superuser': True},
+            email=email,
+            password=password,
         )
-
-        # Always set the password (handles both new and existing users)
-        user.set_password(password)
-        user.is_staff = True
-        user.is_superuser = True
-        user.save()
-
-        if created:
-            self.stdout.write(self.style.SUCCESS(f'Admin user "{username}" created successfully.'))
-        else:
-            self.stdout.write(self.style.SUCCESS(f'Admin user "{username}" password updated.'))
+        self.stdout.write(self.style.SUCCESS(
+            f'Admin user "{username}" created. is_staff={user.is_staff}, is_superuser={user.is_superuser}, has_usable_password={user.has_usable_password()}'
+        ))
