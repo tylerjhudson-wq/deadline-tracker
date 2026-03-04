@@ -14,6 +14,7 @@ from deadlines.models import Client, Matter, DeadlineType, Deadline
 
 DEADLINE_TYPES = {
     'transaction': [
+        'Effective Date of Contract',
         'DD Expiration',
         'Extension Election Deadline',
         'Closing Date',
