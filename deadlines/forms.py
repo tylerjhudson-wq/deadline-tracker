@@ -27,6 +27,9 @@ class MatterForm(forms.ModelForm):
     class Meta:
         model = Matter
         fields = ['title', 'matter_type', 'property_address', 'status', 'asana_project_id', 'notes']
+        labels = {
+            'title': 'Client-Matter',
+        }
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'matter_type': forms.Select(attrs={'class': 'form-select'}),
