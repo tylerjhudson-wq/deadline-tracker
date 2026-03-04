@@ -41,11 +41,12 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING('DRY RUN — no emails will be sent\n'))
 
-        # Get all upcoming deadlines for active matters
+        # Get all upcoming deadlines with notify=True for active matters
         deadlines = Deadline.objects.filter(
             status='upcoming',
+            notify=True,
             matter__status='active',
-        ).select_related('matter', 'matter__client', 'deadline_type')
+        ).select_related('matter', 'matter__client', 'deadline_type').prefetch_related('matter__contacts')
 
         sent_count = 0
         skip_count = 0
@@ -58,81 +59,85 @@ class Command(BaseCommand):
             if days_until not in reminder_days and days_until >= 0:
                 continue
 
-            # For overdue deadlines, send daily reminders
+            # For overdue deadlines, send daily reminders up to 7 days
             if days_until < 0 and days_until < -7:
-                # Stop nagging after 7 days overdue
                 continue
 
-            recipient = deadline.matter.client.email
-            if not recipient:
+            # Get contacts for this matter
+            contacts = deadline.matter.contacts.all()
+            if not contacts:
                 if verbose:
                     self.stdout.write(
-                        self.style.WARNING(f'  SKIP: No email for {deadline.matter.client.name}')
-                    )
-                skip_count += 1
-                continue
-
-            # Check if this reminder was already sent
-            already_sent = ReminderLog.objects.filter(
-                deadline=deadline,
-                days_before=days_until,
-                status='sent',
-                sent_at__date=today,
-            ).exists()
-
-            if already_sent:
-                if verbose:
-                    self.stdout.write(
-                        f'  SKIP: Already sent {days_until}d reminder for {deadline}'
+                        self.style.WARNING(f'  SKIP: No contacts for {deadline.matter.title}')
                     )
                 skip_count += 1
                 continue
 
             # Build the email
             subject = self._build_subject(deadline, days_until)
-            html_body = render_to_string('deadlines/email/reminder.html', {
-                'deadline': deadline,
-                'client_name': deadline.matter.client.name,
-                'days_until': days_until,
-            })
             plain_body = self._build_plain_text(deadline, days_until)
 
-            if verbose or dry_run:
-                self.stdout.write(
-                    f'  {"WOULD SEND" if dry_run else "SENDING"}: '
-                    f'{subject} → {recipient}'
-                )
+            # Send to each contact
+            for contact in contacts:
+                # Check if this reminder was already sent to this contact
+                already_sent = ReminderLog.objects.filter(
+                    deadline=deadline,
+                    recipient_email=contact.email,
+                    days_before=days_until,
+                    status='sent',
+                    sent_at__date=today,
+                ).exists()
 
-            if not dry_run:
-                try:
-                    send_mail(
-                        subject=subject,
-                        message=plain_body,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[recipient],
-                        html_message=html_body,
-                        fail_silently=False,
+                if already_sent:
+                    if verbose:
+                        self.stdout.write(
+                            f'  SKIP: Already sent {days_until}d reminder to {contact.email} for {deadline}'
+                        )
+                    skip_count += 1
+                    continue
+
+                html_body = render_to_string('deadlines/email/reminder.html', {
+                    'deadline': deadline,
+                    'client_name': contact.name,
+                    'days_until': days_until,
+                })
+
+                if verbose or dry_run:
+                    self.stdout.write(
+                        f'  {"WOULD SEND" if dry_run else "SENDING"}: '
+                        f'{subject} → {contact.name} <{contact.email}>'
                     )
-                    ReminderLog.objects.create(
-                        deadline=deadline,
-                        recipient_email=recipient,
-                        days_before=days_until,
-                        status='sent',
-                    )
+
+                if not dry_run:
+                    try:
+                        send_mail(
+                            subject=subject,
+                            message=plain_body,
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            recipient_list=[contact.email],
+                            html_message=html_body,
+                            fail_silently=False,
+                        )
+                        ReminderLog.objects.create(
+                            deadline=deadline,
+                            recipient_email=contact.email,
+                            days_before=days_until,
+                            status='sent',
+                        )
+                        sent_count += 1
+                    except Exception as e:
+                        ReminderLog.objects.create(
+                            deadline=deadline,
+                            recipient_email=contact.email,
+                            days_before=days_until,
+                            status='failed',
+                            error_message=str(e),
+                        )
+                        self.stderr.write(
+                            self.style.ERROR(f'  FAILED: {contact.email} — {e}')
+                        )
+                else:
                     sent_count += 1
-                except Exception as e:
-                    ReminderLog.objects.create(
-                        deadline=deadline,
-                        recipient_email=recipient,
-                        days_before=days_until,
-                        status='failed',
-                        error_message=str(e),
-                    )
-                    self.stderr.write(
-                        self.style.ERROR(f'  FAILED: {deadline} — {e}')
-                    )
-            else:
-                sent_count += 1
 
         # Summary
         self.stdout.write('')
@@ -161,8 +166,6 @@ class Command(BaseCommand):
     def _build_plain_text(self, deadline, days_until):
         lines = [
             f'Deadline Reminder',
-            f'',
-            f'Dear {deadline.matter.client.name},',
             f'',
         ]
 

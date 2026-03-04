@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.db.models import Q, Case, When, IntegerField
-from .models import Client, Matter, Deadline, DeadlineType
+from .models import Client, Matter, MatterContact, Deadline, DeadlineType
 from .forms import ClientForm, MatterForm, DeadlineForm
 
 
@@ -140,10 +140,11 @@ def matter_deadlines_setup(request, pk):
                     )
                     created_count += 1
         if created_count:
-            messages.success(request, f'{created_count} deadline(s) added.')
+            messages.success(request, f'{created_count} deadline(s) added. Now set up notifications.')
+            return redirect('deadlines:matter_notifications_setup', pk=matter.pk)
         else:
             messages.info(request, 'No new deadlines added.')
-        return redirect('deadlines:matter_detail', pk=matter.pk)
+            return redirect('deadlines:matter_detail', pk=matter.pk)
 
     context = {
         'matter': matter,
@@ -151,6 +152,52 @@ def matter_deadlines_setup(request, pk):
         'existing_type_ids': existing_type_ids,
     }
     return render(request, 'deadlines/matter_deadlines_setup.html', context)
+
+
+def matter_notifications_setup(request, pk):
+    """Set up contacts and choose which deadlines trigger notifications."""
+    matter = get_object_or_404(Matter, pk=pk)
+    deadlines = matter.deadlines.select_related('deadline_type').filter(status='upcoming').order_by('date')
+    contacts = matter.contacts.all()
+
+    if request.method == 'POST':
+        # Handle adding a new contact
+        if 'add_contact' in request.POST:
+            contact_name = request.POST.get('contact_name', '').strip()
+            contact_email = request.POST.get('contact_email', '').strip()
+            contact_role = request.POST.get('contact_role', '').strip()
+            if contact_name and contact_email:
+                MatterContact.objects.create(
+                    matter=matter,
+                    name=contact_name,
+                    email=contact_email,
+                    role=contact_role,
+                )
+                messages.success(request, f'Contact "{contact_name}" added.')
+            return redirect('deadlines:matter_notifications_setup', pk=matter.pk)
+
+        # Handle removing a contact
+        if 'remove_contact' in request.POST:
+            contact_id = request.POST.get('remove_contact')
+            MatterContact.objects.filter(id=contact_id, matter=matter).delete()
+            messages.success(request, 'Contact removed.')
+            return redirect('deadlines:matter_notifications_setup', pk=matter.pk)
+
+        # Handle saving notification preferences (which deadlines get notifications)
+        if 'save_notifications' in request.POST:
+            for deadline in deadlines:
+                notify_key = f'notify_{deadline.id}'
+                deadline.notify = notify_key in request.POST
+                deadline.save()
+            messages.success(request, 'Notification preferences saved.')
+            return redirect('deadlines:matter_detail', pk=matter.pk)
+
+    context = {
+        'matter': matter,
+        'deadlines': deadlines,
+        'contacts': contacts,
+    }
+    return render(request, 'deadlines/matter_notifications_setup.html', context)
 
 
 def deadline_add(request, matter_pk):

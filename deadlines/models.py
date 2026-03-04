@@ -66,6 +66,21 @@ class Matter(models.Model):
         return self.upcoming_deadlines.first()
 
 
+class MatterContact(models.Model):
+    """An email recipient for notifications on a specific matter."""
+    matter = models.ForeignKey(Matter, on_delete=models.CASCADE, related_name='contacts')
+    name = models.CharField(max_length=200)
+    email = models.EmailField()
+    role = models.CharField(max_length=100, blank=True, help_text='e.g. Client, Buyer, Seller, Broker, Lender')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} <{self.email}> ({self.role})"
+
+
 class DeadlineType(models.Model):
     MATTER_TYPE_CHOICES = Matter.MATTER_TYPE_CHOICES
 
@@ -100,6 +115,7 @@ class Deadline(models.Model):
         blank=True,
         help_text='Override reminder days for this deadline. Leave empty to use deadline type defaults.'
     )
+    notify = models.BooleanField(default=False, help_text='Send email reminders to matter contacts for this deadline')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='upcoming')
     asana_task_id = models.CharField(max_length=100, blank=True, help_text='Asana task GID if synced')
     created_at = models.DateTimeField(auto_now_add=True)

@@ -30,6 +30,9 @@
         <a href="{% url 'deadlines:matter_deadlines_setup' matter.pk %}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Add Deadlines
         </a>
+        <a href="{% url 'deadlines:matter_notifications_setup' matter.pk %}" class="btn btn-outline-info">
+            <i class="bi bi-bell"></i> Notifications
+        </a>
     </div>
 </div>
 

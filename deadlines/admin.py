@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Client, Matter, DeadlineType, Deadline, ReminderLog
+from .models import Client, Matter, MatterContact, DeadlineType, Deadline, ReminderLog
 
 
 class MatterInline(admin.TabularInline):
@@ -9,10 +9,16 @@ class MatterInline(admin.TabularInline):
     show_change_link = True
 
 
+class MatterContactInline(admin.TabularInline):
+    model = MatterContact
+    extra = 1
+    fields = ['name', 'email', 'role']
+
+
 class DeadlineInline(admin.TabularInline):
     model = Deadline
     extra = 1
-    fields = ['deadline_type', 'date', 'status', 'description']
+    fields = ['deadline_type', 'date', 'status', 'notify', 'description']
     autocomplete_fields = ['deadline_type']
 
 
@@ -33,7 +39,7 @@ class MatterAdmin(admin.ModelAdmin):
     list_filter = ['matter_type', 'status']
     search_fields = ['title', 'client__name', 'property_address']
     autocomplete_fields = ['client']
-    inlines = [DeadlineInline]
+    inlines = [MatterContactInline, DeadlineInline]
 
     def next_deadline_display(self, obj):
         dl = obj.next_deadline

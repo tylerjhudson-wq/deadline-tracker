@@ -1,0 +1,151 @@
+{% extends "deadlines/base.html" %}
+
+{% block title %}Notification Setup — {{ matter.title }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'deadlines:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'deadlines:matter_detail' matter.pk %}">{{ matter.title }}</a></li>
+        <li class="breadcrumb-item active">Notification Setup</li>
+    </ol>
+</nav>
+
+<h1>Notification Setup</h1>
+<p class="text-muted">{{ matter.title }} &mdash; {{ matter.client.name }}</p>
+
+<!-- Step 1: Contacts -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-people"></i> Step 1: Who should receive notifications?</h5>
+    </div>
+    <div class="card-body">
+
+        {% if contacts %}
+        <table class="table table-sm mb-4">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for contact in contacts %}
+                <tr>
+                    <td>{{ contact.name }}</td>
+                    <td>{{ contact.email }}</td>
+                    <td>{{ contact.role|default:"—" }}</td>
+                    <td>
+                        <form method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" name="remove_contact" value="{{ contact.id }}" class="btn btn-sm btn-outline-danger" title="Remove">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-3">No contacts added yet.</p>
+        {% endif %}
+
+        <!-- Add contact form -->
+        <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-md-3">
+                <label class="form-label">Name</label>
+                <input type="text" name="contact_name" class="form-control form-control-sm" placeholder="John Smith" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Email</label>
+                <input type="email" name="contact_email" class="form-control form-control-sm" placeholder="john@example.com" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Role <small class="text-muted">(optional)</small></label>
+                <input type="text" name="contact_role" class="form-control form-control-sm" placeholder="e.g. Client, Broker, Lender">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" name="add_contact" value="1" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-plus-circle"></i> Add Contact
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Step 2: Which deadlines trigger notifications -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-bell"></i> Step 2: Which deadlines should trigger email reminders?</h5>
+    </div>
+    <div class="card-body">
+        {% if not contacts %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Add at least one contact above before selecting deadlines.
+        </div>
+        {% endif %}
+
+        {% if deadlines %}
+        <form method="post">
+            {% csrf_token %}
+            <table class="table">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 60px;">Notify</th>
+                        <th>Deadline</th>
+                        <th>Date</th>
+                        <th>Days Until</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dl in deadlines %}
+                    <tr>
+                        <td class="text-center">
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   name="notify_{{ dl.id }}"
+                                   {% if dl.notify %}checked{% endif %}
+                                   {% if not contacts %}disabled{% endif %}>
+                        </td>
+                        <td>{{ dl.deadline_type.name }}</td>
+                        <td>
+                            <span class="badge bg-{{ dl.urgency_color }}">
+                                {{ dl.date|date:"M j, Y" }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if dl.days_until < 0 %}
+                                <span class="text-danger">{{ dl.days_until|cut:"-" }}d overdue</span>
+                            {% elif dl.days_until == 0 %}
+                                <span class="text-danger fw-bold">TODAY</span>
+                            {% else %}
+                                {{ dl.days_until }}d
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="d-flex gap-2">
+                <button type="submit" name="save_notifications" value="1" class="btn btn-primary" {% if not contacts %}disabled{% endif %}>
+                    <i class="bi bi-check-lg"></i> Save Notification Preferences
+                </button>
+                <a href="{% url 'deadlines:matter_detail' matter.pk %}" class="btn btn-outline-secondary">
+                    Skip
+                </a>
+            </div>
+        </form>
+        {% else %}
+        <p class="text-muted">No upcoming deadlines to configure notifications for.</p>
+        <a href="{% url 'deadlines:matter_detail' matter.pk %}" class="btn btn-outline-secondary">
+            Back to Matter
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
