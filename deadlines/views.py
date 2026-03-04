@@ -86,8 +86,8 @@ def matter_create(request):
         form = MatterForm(request.POST)
         if form.is_valid():
             matter = form.save()
-            messages.success(request, f'Matter "{matter.title}" created successfully.')
-            return redirect('deadlines:matter_detail', pk=matter.pk)
+            messages.success(request, f'Matter "{matter.title}" created. Now select deadlines.')
+            return redirect('deadlines:matter_deadlines_setup', pk=matter.pk)
     else:
         form = MatterForm()
 
@@ -114,6 +114,43 @@ def matter_edit(request, pk):
         'title': f'Edit: {matter.title}',
         'matter': matter,
     })
+
+
+def matter_deadlines_setup(request, pk):
+    """Checklist page to select and date multiple deadlines at once."""
+    matter = get_object_or_404(Matter, pk=pk)
+    deadline_types = DeadlineType.objects.filter(matter_type=matter.matter_type)
+
+    # Get already-existing deadline type IDs for this matter
+    existing_type_ids = set(matter.deadlines.values_list('deadline_type_id', flat=True))
+
+    if request.method == 'POST':
+        created_count = 0
+        for dt in deadline_types:
+            checkbox_key = f'check_{dt.id}'
+            date_key = f'date_{dt.id}'
+            if checkbox_key in request.POST and request.POST.get(date_key):
+                date_value = request.POST[date_key]
+                # Skip if this deadline type already exists for this matter
+                if dt.id not in existing_type_ids:
+                    Deadline.objects.create(
+                        matter=matter,
+                        deadline_type=dt,
+                        date=date_value,
+                    )
+                    created_count += 1
+        if created_count:
+            messages.success(request, f'{created_count} deadline(s) added.')
+        else:
+            messages.info(request, 'No new deadlines added.')
+        return redirect('deadlines:matter_detail', pk=matter.pk)
+
+    context = {
+        'matter': matter,
+        'deadline_types': deadline_types,
+        'existing_type_ids': existing_type_ids,
+    }
+    return render(request, 'deadlines/matter_deadlines_setup.html', context)
 
 
 def deadline_add(request, matter_pk):
