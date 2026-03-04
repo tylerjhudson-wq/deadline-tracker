@@ -15,11 +15,19 @@ class ClientForm(forms.ModelForm):
 
 
 class MatterForm(forms.ModelForm):
+    client_name = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Type client name',
+        }),
+        help_text='Type a client name. If they don\'t exist yet, a new client record will be created.',
+    )
+
     class Meta:
         model = Matter
-        fields = ['client', 'title', 'matter_type', 'property_address', 'status', 'asana_project_id', 'notes']
+        fields = ['title', 'matter_type', 'property_address', 'status', 'asana_project_id', 'notes']
         widgets = {
-            'client': forms.Select(attrs={'class': 'form-select'}),
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'matter_type': forms.Select(attrs={'class': 'form-select'}),
             'property_address': forms.TextInput(attrs={'class': 'form-control'}),
@@ -27,6 +35,21 @@ class MatterForm(forms.ModelForm):
             'asana_project_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional — Asana project GID'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pre-fill client name when editing an existing matter
+        if self.instance and self.instance.pk:
+            self.fields['client_name'].initial = self.instance.client.name
+
+    def save(self, commit=True):
+        client_name = self.cleaned_data['client_name'].strip()
+        client, _ = Client.objects.get_or_create(
+            name__iexact=client_name,
+            defaults={'name': client_name},
+        )
+        self.instance.client = client
+        return super().save(commit=commit)
 
 
 class DeadlineForm(forms.ModelForm):
