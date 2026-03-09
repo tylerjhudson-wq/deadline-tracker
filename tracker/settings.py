@@ -1,5 +1,5 @@
 """
-Django settings for tracker project — Deal 360
+Django settings for tracker project — Deal360
 """
 
 import os
