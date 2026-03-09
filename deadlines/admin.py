@@ -83,6 +83,6 @@ class ReminderLogAdmin(admin.ModelAdmin):
 
 
 # Customize admin site header
-admin.site.site_header = "Deadline Tracker"
-admin.site.site_title = "Deadline Tracker Admin"
+admin.site.site_header = "Deal 360"
+admin.site.site_title = "Deal 360 Admin"
 admin.site.index_title = "Manage Deadlines"

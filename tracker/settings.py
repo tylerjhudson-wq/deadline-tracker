@@ -1,5 +1,5 @@
 """
-Django settings for tracker project — Deadline Tracker for Law Firm
+Django settings for tracker project — Deal 360
 """
 
 import os

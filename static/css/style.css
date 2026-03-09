@@ -1,11 +1,39 @@
-/* Deadline Tracker Custom Styles */
+/* Deal360 Custom Styles */
 
 body {
     background-color: #f8f9fa;
 }
 
+.navbar {
+    background-color: #0f1b2d !important;
+}
+
 .navbar-brand {
     font-weight: 600;
+}
+
+.navbar-brand img {
+    height: 28px;
+    width: auto;
+}
+
+/* Deal360 brand colors */
+.btn-primary {
+    background-color: #0084D5;
+    border-color: #0084D5;
+}
+
+.btn-primary:hover {
+    background-color: #006bb0;
+    border-color: #006bb0;
+}
+
+a {
+    color: #0084D5;
+}
+
+a:hover {
+    color: #006bb0;
 }
 
 /* Dashboard cards */
