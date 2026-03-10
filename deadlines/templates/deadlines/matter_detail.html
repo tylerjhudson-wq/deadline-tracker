@@ -106,6 +106,13 @@
                     <span class="{% if dl.status != 'completed' %}badge bg-{{ dl.urgency_color }}{% endif %}">
                         {{ dl.date|date:"M j, Y" }}
                     </span>
+                    {% if dl.is_calculated and dl.reference_deadline %}
+                        <br><small class="text-muted">
+                            <i class="bi bi-calculator"></i>
+                            {{ dl.reference_deadline.deadline_type.name }}
+                            + {{ dl.offset_days }} {{ dl.get_day_type_display|lower }}
+                        </small>
+                    {% endif %}
                 </td>
                 <td>
                     {% if dl.status == 'completed' %}

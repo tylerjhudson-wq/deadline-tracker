@@ -1,4 +1,6 @@
+import datetime
 import os
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse
 from django.utils import timezone
@@ -7,6 +9,7 @@ from django.contrib.auth.models import User
 from django.db.models import Q, Case, When, IntegerField
 from .models import Client, Matter, MatterContact, Deadline, DeadlineType
 from .forms import ClientForm, MatterForm, DeadlineForm
+from .utils import add_business_days
 
 
 def dashboard(request):
@@ -30,7 +33,6 @@ def dashboard(request):
         deadlines = deadlines.filter(matter__client_id=client_id)
 
     # Group by urgency
-    import datetime
     overdue = deadlines.filter(date__lt=today).order_by('date')
     this_week = deadlines.filter(
         date__gte=today,
@@ -69,7 +71,9 @@ def dashboard(request):
 def matter_detail(request, pk):
     """Detail view for a single matter with all its deadlines."""
     matter = get_object_or_404(Matter.objects.select_related('client'), pk=pk)
-    deadlines = matter.deadlines.select_related('deadline_type').all()
+    deadlines = matter.deadlines.select_related(
+        'deadline_type', 'reference_deadline__deadline_type'
+    ).all()
     reminder_logs = matter.deadlines.prefetch_related('reminder_logs').all()
 
     context = {
@@ -119,26 +123,83 @@ def matter_edit(request, pk):
 def matter_deadlines_setup(request, pk):
     """Checklist page to select and date multiple deadlines at once."""
     matter = get_object_or_404(Matter, pk=pk)
-    deadline_types = DeadlineType.objects.filter(matter_type=matter.matter_type)
+    deadline_types = DeadlineType.objects.filter(
+        matter_type=matter.matter_type
+    ).select_related('default_reference_type')
 
     # Get already-existing deadline type IDs for this matter
     existing_type_ids = set(matter.deadlines.values_list('deadline_type_id', flat=True))
+    existing_deadlines = matter.deadlines.select_related('deadline_type').all()
 
     if request.method == 'POST':
+        created_deadlines = {}  # dt_id -> Deadline instance
         created_count = 0
+
+        # PASS 1: Create all hard-dated deadlines first
         for dt in deadline_types:
             checkbox_key = f'check_{dt.id}'
-            date_key = f'date_{dt.id}'
-            if checkbox_key in request.POST and request.POST.get(date_key):
-                date_value = request.POST[date_key]
-                # Skip if this deadline type already exists for this matter
-                if dt.id not in existing_type_ids:
-                    Deadline.objects.create(
+            if checkbox_key not in request.POST or dt.id in existing_type_ids:
+                continue
+
+            mode = request.POST.get(f'mode_{dt.id}', 'hard')
+            if mode == 'hard':
+                date_value = request.POST.get(f'date_{dt.id}')
+                if date_value:
+                    dl = Deadline.objects.create(
                         matter=matter,
                         deadline_type=dt,
                         date=date_value,
+                        is_calculated=False,
                     )
+                    created_deadlines[dt.id] = dl
                     created_count += 1
+
+        # PASS 2: Create calculated deadlines (they need reference deadlines to exist)
+        for dt in deadline_types:
+            checkbox_key = f'check_{dt.id}'
+            if checkbox_key not in request.POST or dt.id in existing_type_ids:
+                continue
+
+            mode = request.POST.get(f'mode_{dt.id}', 'hard')
+            if mode == 'calculated':
+                ref_type_id = request.POST.get(f'ref_{dt.id}')
+                offset = request.POST.get(f'offset_{dt.id}')
+                day_type = request.POST.get(f'daytype_{dt.id}', 'calendar')
+
+                if ref_type_id and offset:
+                    try:
+                        ref_type_id = int(ref_type_id)
+                        offset_int = int(offset)
+                    except (ValueError, TypeError):
+                        continue
+
+                    # Find the reference deadline — could be one we just created,
+                    # or one that already existed for this matter
+                    ref_deadline = created_deadlines.get(ref_type_id)
+                    if not ref_deadline:
+                        ref_deadline = Deadline.objects.filter(
+                            matter=matter,
+                            deadline_type_id=ref_type_id,
+                        ).first()
+
+                    if ref_deadline:
+                        if day_type == 'business':
+                            calc_date = add_business_days(ref_deadline.date, offset_int)
+                        else:
+                            calc_date = ref_deadline.date + datetime.timedelta(days=offset_int)
+
+                        dl = Deadline.objects.create(
+                            matter=matter,
+                            deadline_type=dt,
+                            date=calc_date,
+                            is_calculated=True,
+                            reference_deadline=ref_deadline,
+                            offset_days=offset_int,
+                            day_type=day_type,
+                        )
+                        created_deadlines[dt.id] = dl
+                        created_count += 1
+
         if created_count:
             messages.success(request, f'{created_count} deadline(s) added. Now set up notifications.')
             return redirect('deadlines:matter_notifications_setup', pk=matter.pk)
@@ -150,6 +211,7 @@ def matter_deadlines_setup(request, pk):
         'matter': matter,
         'deadline_types': deadline_types,
         'existing_type_ids': existing_type_ids,
+        'existing_deadlines': existing_deadlines,
     }
     return render(request, 'deadlines/matter_deadlines_setup.html', context)
 
@@ -227,7 +289,9 @@ def deadline_edit(request, pk):
     if request.method == 'POST':
         form = DeadlineForm(request.POST, instance=deadline, matter_type=deadline.matter.matter_type)
         if form.is_valid():
-            form.save()
+            deadline = form.save()
+            # Recalculate any deadlines that depend on this one
+            deadline.recalculate_dependents()
             messages.success(request, f'Deadline updated.')
             return redirect('deadlines:matter_detail', pk=deadline.matter.pk)
     else:

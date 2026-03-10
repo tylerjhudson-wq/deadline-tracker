@@ -19,57 +19,118 @@
 
 <div class="card">
     <div class="card-body">
-        <p>Check the deadlines that apply to this matter and enter the date for each.</p>
+        <p>Check the deadlines that apply, then choose a <strong>hard date</strong> or <strong>calculated date</strong> for each.</p>
 
         <form method="post">
             {% csrf_token %}
-            <table class="table">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 50px;"></th>
-                        <th>Deadline Type</th>
-                        <th style="width: 200px;">Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for dt in deadline_types %}
-                    <tr class="{% if dt.id in existing_type_ids %}table-secondary{% endif %}">
-                        <td class="text-center">
-                            {% if dt.id in existing_type_ids %}
-                                <i class="bi bi-check-circle-fill text-success" title="Already added"></i>
-                            {% else %}
-                                <input type="checkbox"
-                                       class="form-check-input deadline-check"
-                                       name="check_{{ dt.id }}"
-                                       id="check_{{ dt.id }}"
-                                       data-date-field="date_{{ dt.id }}">
-                            {% endif %}
-                        </td>
-                        <td>
-                            <label for="check_{{ dt.id }}" class="{% if dt.id in existing_type_ids %}text-muted{% endif %}" style="cursor: pointer;">
-                                {{ dt.name }}
-                                {% if dt.id in existing_type_ids %}
-                                    <small class="text-muted">(already added)</small>
-                                {% endif %}
-                            </label>
-                        </td>
-                        <td>
-                            {% if dt.id in existing_type_ids %}
-                                <span class="text-muted">—</span>
-                            {% else %}
-                                <input type="date"
-                                       class="form-control form-control-sm date-input"
-                                       name="date_{{ dt.id }}"
-                                       id="date_{{ dt.id }}"
-                                       disabled>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
 
-            <div class="d-flex gap-2">
+            {% for dt in deadline_types %}
+            <div class="border-bottom py-3 deadline-row" data-dt-id="{{ dt.id }}">
+                {% if dt.id in existing_type_ids %}
+                    {# Already added — show grayed out #}
+                    <div class="d-flex align-items-center text-muted">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        {{ dt.name }} <small class="ms-2">(already added)</small>
+                    </div>
+                {% else %}
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input deadline-check"
+                               name="check_{{ dt.id }}" id="check_{{ dt.id }}"
+                               data-dt-id="{{ dt.id }}">
+                        <label class="form-check-label fw-semibold" for="check_{{ dt.id }}">
+                            {{ dt.name }}
+                        </label>
+                    </div>
+
+                    {# Options — hidden until checkbox is checked #}
+                    <div class="ms-4 mt-2 deadline-options d-none" id="options_{{ dt.id }}">
+
+                        {# Mode radio buttons #}
+                        <div class="d-flex gap-3 mb-2">
+                            <div class="form-check">
+                                <input type="radio" class="form-check-input mode-radio"
+                                       name="mode_{{ dt.id }}" value="hard"
+                                       id="mode_hard_{{ dt.id }}"
+                                       {% if not dt.default_reference_type %}checked{% endif %}
+                                       data-dt-id="{{ dt.id }}">
+                                <label class="form-check-label" for="mode_hard_{{ dt.id }}">
+                                    Hard Date
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input type="radio" class="form-check-input mode-radio"
+                                       name="mode_{{ dt.id }}" value="calculated"
+                                       id="mode_calc_{{ dt.id }}"
+                                       {% if dt.default_reference_type %}checked{% endif %}
+                                       data-dt-id="{{ dt.id }}">
+                                <label class="form-check-label" for="mode_calc_{{ dt.id }}">
+                                    Calculated
+                                </label>
+                            </div>
+                        </div>
+
+                        {# Hard date input #}
+                        <div class="hard-date-section" id="hard_{{ dt.id }}"
+                             {% if dt.default_reference_type %}style="display:none"{% endif %}>
+                            <input type="date" class="form-control form-control-sm date-input"
+                                   style="max-width: 200px;"
+                                   name="date_{{ dt.id }}" id="date_{{ dt.id }}">
+                        </div>
+
+                        {# Calculated section #}
+                        <div class="calc-section" id="calc_{{ dt.id }}"
+                             {% if not dt.default_reference_type %}style="display:none"{% endif %}>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <select class="form-select form-select-sm ref-select"
+                                        style="max-width: 250px;"
+                                        name="ref_{{ dt.id }}" id="ref_{{ dt.id }}"
+                                        data-dt-id="{{ dt.id }}">
+                                    <option value="">-- Reference Deadline --</option>
+                                    {% for other_dt in deadline_types %}
+                                        {% if other_dt.id != dt.id %}
+                                        <option value="{{ other_dt.id }}"
+                                            {% if dt.default_reference_type_id == other_dt.id %}selected{% endif %}>
+                                            {{ other_dt.name }}
+                                        </option>
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% for existing_dl in existing_deadlines %}
+                                        {% if existing_dl.deadline_type_id != dt.id %}
+                                        <option value="{{ existing_dl.deadline_type_id }}"
+                                                data-existing-date="{{ existing_dl.date|date:'Y-m-d' }}">
+                                            {{ existing_dl.deadline_type.name }} ({{ existing_dl.date|date:"M j" }})
+                                        </option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <span class="text-muted">+</span>
+                                <input type="number" class="form-control form-control-sm offset-input"
+                                       style="max-width: 80px;" min="0"
+                                       name="offset_{{ dt.id }}" id="offset_{{ dt.id }}"
+                                       value="{{ dt.default_offset_days|default_if_none:'' }}"
+                                       data-dt-id="{{ dt.id }}">
+                                <select class="form-select form-select-sm daytype-select"
+                                        style="max-width: 160px;"
+                                        name="daytype_{{ dt.id }}" id="daytype_{{ dt.id }}"
+                                        data-dt-id="{{ dt.id }}">
+                                    <option value="calendar" {% if dt.default_day_type == 'calendar' %}selected{% endif %}>
+                                        Calendar Days
+                                    </option>
+                                    <option value="business" {% if dt.default_day_type == 'business' %}selected{% endif %}>
+                                        Business Days
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="mt-1">
+                                <small class="text-muted calc-preview" id="preview_{{ dt.id }}"></small>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <div class="d-flex gap-2 mt-3">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-lg"></i> Save Deadlines
                 </button>
@@ -84,18 +145,155 @@
 
 {% block extra_js %}
 <script>
-    // Enable/disable date field when checkbox is toggled
-    document.querySelectorAll('.deadline-check').forEach(function(checkbox) {
-        checkbox.addEventListener('change', function() {
-            var dateField = document.getElementById(this.dataset.dateField);
+document.addEventListener('DOMContentLoaded', function() {
+
+    // -- State: track dates entered for each deadline type ID --
+    var datesByTypeId = {};
+
+    // Pre-populate from existing deadlines (already saved for this matter)
+    {% for dl in existing_deadlines %}
+    datesByTypeId['{{ dl.deadline_type_id }}'] = '{{ dl.date|date:"Y-m-d" }}';
+    {% endfor %}
+
+    // -- 1. Checkbox toggle: show/hide options --
+    document.querySelectorAll('.deadline-check').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            var dtId = this.dataset.dtId;
+            var options = document.getElementById('options_' + dtId);
             if (this.checked) {
-                dateField.disabled = false;
-                dateField.focus();
+                options.classList.remove('d-none');
             } else {
-                dateField.disabled = true;
-                dateField.value = '';
+                options.classList.add('d-none');
             }
         });
     });
+
+    // -- 2. Mode radio toggle: switch between hard date and calculated --
+    document.querySelectorAll('.mode-radio').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            var dtId = this.dataset.dtId;
+            var hardSection = document.getElementById('hard_' + dtId);
+            var calcSection = document.getElementById('calc_' + dtId);
+            if (this.value === 'hard') {
+                hardSection.style.display = '';
+                calcSection.style.display = 'none';
+            } else {
+                hardSection.style.display = 'none';
+                calcSection.style.display = '';
+                updatePreview(dtId);
+            }
+        });
+    });
+
+    // -- 3. Business days calculation --
+    function addBusinessDays(startDate, numDays) {
+        var current = new Date(startDate);
+        var added = 0;
+        while (added < numDays) {
+            current.setDate(current.getDate() + 1);
+            if (current.getDay() !== 0 && current.getDay() !== 6) {
+                added++;
+            }
+        }
+        return current;
+    }
+
+    function formatDate(d) {
+        return d.toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric'
+        });
+    }
+
+    // -- 4. Update preview for a specific deadline type --
+    function updatePreview(dtId) {
+        var preview = document.getElementById('preview_' + dtId);
+        if (!preview) return;
+
+        var refSelect = document.getElementById('ref_' + dtId);
+        var offsetInput = document.getElementById('offset_' + dtId);
+        var dayTypeSelect = document.getElementById('daytype_' + dtId);
+
+        var refTypeId = refSelect.value;
+        var offset = parseInt(offsetInput.value);
+        var dayType = dayTypeSelect.value;
+
+        if (!refTypeId || isNaN(offset)) {
+            preview.textContent = '';
+            return;
+        }
+
+        // Get the reference date — check existing dates first, then form inputs
+        var refDate = null;
+
+        // Check the selected option for a data-existing-date attribute
+        var selectedOption = refSelect.options[refSelect.selectedIndex];
+        if (selectedOption && selectedOption.dataset.existingDate) {
+            refDate = selectedOption.dataset.existingDate;
+        }
+
+        // Check our tracked dates
+        if (!refDate && datesByTypeId[refTypeId]) {
+            refDate = datesByTypeId[refTypeId];
+        }
+
+        // Check if there's a date input for this type in the current form
+        if (!refDate) {
+            var refDateInput = document.getElementById('date_' + refTypeId);
+            if (refDateInput && refDateInput.value) {
+                refDate = refDateInput.value;
+            }
+        }
+
+        if (!refDate) {
+            preview.innerHTML = '<i class="bi bi-info-circle"></i> Enter the reference date first';
+            return;
+        }
+
+        // Parse and calculate
+        var base = new Date(refDate + 'T00:00:00');
+        var result;
+        if (dayType === 'business') {
+            result = addBusinessDays(base, offset);
+        } else {
+            result = new Date(base);
+            result.setDate(result.getDate() + offset);
+        }
+
+        preview.innerHTML = '<i class="bi bi-arrow-right text-success"></i> <strong>' + formatDate(result) + '</strong>';
+    }
+
+    // -- 5. Wire up change events for calculated fields --
+    document.querySelectorAll('.ref-select, .offset-input, .daytype-select').forEach(function(el) {
+        el.addEventListener('change', function() {
+            updatePreview(this.dataset.dtId);
+        });
+        el.addEventListener('input', function() {
+            updatePreview(this.dataset.dtId);
+        });
+    });
+
+    // -- 6. Cross-row reactivity: when a hard date changes, update all previews --
+    document.querySelectorAll('.date-input').forEach(function(dateInput) {
+        dateInput.addEventListener('change', function() {
+            // Extract the type ID from the input name (date_{id})
+            var match = this.name.match(/date_(\d+)/);
+            if (match) {
+                datesByTypeId[match[1]] = this.value;
+            }
+            // Re-run all visible previews
+            document.querySelectorAll('.calc-preview').forEach(function(p) {
+                var previewDtId = p.id.replace('preview_', '');
+                updatePreview(previewDtId);
+            });
+        });
+    });
+
+    // -- 7. Run initial previews for any pre-filled calculated rows --
+    document.querySelectorAll('.calc-preview').forEach(function(p) {
+        var dtId = p.id.replace('preview_', '');
+        updatePreview(dtId);
+    });
+
+});
 </script>
 {% endblock %}

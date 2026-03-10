@@ -18,7 +18,8 @@ class MatterContactInline(admin.TabularInline):
 class DeadlineInline(admin.TabularInline):
     model = Deadline
     extra = 1
-    fields = ['deadline_type', 'date', 'status', 'notify', 'description']
+    fields = ['deadline_type', 'date', 'status', 'notify', 'is_calculated',
+              'reference_deadline', 'offset_days', 'day_type', 'description']
     autocomplete_fields = ['deadline_type']
 
 
@@ -51,15 +52,16 @@ class MatterAdmin(admin.ModelAdmin):
 
 @admin.register(DeadlineType)
 class DeadlineTypeAdmin(admin.ModelAdmin):
-    list_display = ['name', 'matter_type', 'default_reminder_days']
+    list_display = ['name', 'matter_type', 'default_reference_type',
+                    'default_offset_days', 'default_day_type', 'default_reminder_days']
     list_filter = ['matter_type']
     search_fields = ['name']
 
 
 @admin.register(Deadline)
 class DeadlineAdmin(admin.ModelAdmin):
-    list_display = ['deadline_type', 'matter', 'date', 'days_until_display', 'status']
-    list_filter = ['status', 'deadline_type__matter_type', 'deadline_type']
+    list_display = ['deadline_type', 'matter', 'date', 'days_until_display', 'status', 'is_calculated']
+    list_filter = ['status', 'is_calculated', 'deadline_type__matter_type', 'deadline_type']
     search_fields = ['matter__title', 'matter__client__name', 'deadline_type__name']
     autocomplete_fields = ['matter', 'deadline_type']
     date_hierarchy = 'date'

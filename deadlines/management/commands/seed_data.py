@@ -67,8 +67,62 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f'\n{created} deadline types created.'))
 
+        # Set default calculation rules
+        self._set_default_offsets()
+
         if options['with_samples']:
             self._create_samples()
+
+    def _set_default_offsets(self):
+        """Set default reference type / offset for common deadline calculations."""
+        self.stdout.write('\nSetting default calculation rules...')
+
+        # Transaction defaults — most deadlines reference Effective Date of Contract
+        try:
+            effective = DeadlineType.objects.get(
+                name='Effective Date of Contract', matter_type='transaction')
+        except DeadlineType.DoesNotExist:
+            self.stdout.write(self.style.WARNING(
+                '  Effective Date not found, skipping transaction defaults'))
+            return
+
+        transaction_defaults = {
+            'DD Expiration': (effective, 30, 'calendar'),
+            'Financing Contingency': (effective, 21, 'calendar'),
+            'Title Review Deadline': (effective, 15, 'calendar'),
+            'Survey Deadline': (effective, 15, 'calendar'),
+            'Inspection Deadline': (effective, 10, 'business'),
+            'Earnest Money Deadline': (effective, 3, 'business'),
+            'Appraisal Deadline': (effective, 21, 'calendar'),
+        }
+
+        for name, (ref_type, offset, day_type) in transaction_defaults.items():
+            updated = DeadlineType.objects.filter(
+                name=name, matter_type='transaction'
+            ).update(
+                default_reference_type=ref_type,
+                default_offset_days=offset,
+                default_day_type=day_type,
+            )
+            if updated:
+                self.stdout.write(f'  {name}: {ref_type.name} + {offset} {day_type} days')
+
+        # Land use defaults
+        try:
+            hearing = DeadlineType.objects.get(
+                name='Hearing Date', matter_type='land_use')
+            DeadlineType.objects.filter(
+                name='Appeal Deadline', matter_type='land_use'
+            ).update(
+                default_reference_type=hearing,
+                default_offset_days=30,
+                default_day_type='calendar',
+            )
+            self.stdout.write(f'  Appeal Deadline: Hearing Date + 30 calendar days')
+        except DeadlineType.DoesNotExist:
+            pass
+
+        self.stdout.write(self.style.SUCCESS('Default calculation rules set.'))
 
     def _create_samples(self):
         today = timezone.localdate()

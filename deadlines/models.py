@@ -1,5 +1,9 @@
+import datetime
+
 from django.db import models
 from django.utils import timezone
+
+from .utils import add_business_days
 
 
 class Client(models.Model):
@@ -83,12 +87,35 @@ class MatterContact(models.Model):
 
 class DeadlineType(models.Model):
     MATTER_TYPE_CHOICES = Matter.MATTER_TYPE_CHOICES
+    DAY_TYPE_CHOICES = [
+        ('calendar', 'Calendar Days'),
+        ('business', 'Business Days'),
+    ]
 
     name = models.CharField(max_length=200)
     matter_type = models.CharField(max_length=20, choices=MATTER_TYPE_CHOICES)
     default_reminder_days = models.JSONField(
         default=list,
         help_text='List of days before deadline to send reminders, e.g. [30, 14, 7, 3, 1]'
+    )
+    default_reference_type = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dependent_types',
+        help_text='Default reference deadline type for calculated dates',
+    )
+    default_offset_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Default number of days offset from reference deadline',
+    )
+    default_day_type = models.CharField(
+        max_length=10,
+        choices=DAY_TYPE_CHOICES,
+        default='calendar',
+        help_text='Default day type for offset calculation',
     )
 
     class Meta:
@@ -105,6 +132,10 @@ class Deadline(models.Model):
         ('extended', 'Extended'),
         ('waived', 'Waived'),
     ]
+    DAY_TYPE_CHOICES = [
+        ('calendar', 'Calendar Days'),
+        ('business', 'Business Days'),
+    ]
 
     matter = models.ForeignKey(Matter, on_delete=models.CASCADE, related_name='deadlines')
     deadline_type = models.ForeignKey(DeadlineType, on_delete=models.PROTECT, related_name='deadlines')
@@ -118,6 +149,32 @@ class Deadline(models.Model):
     notify = models.BooleanField(default=False, help_text='Send email reminders to matter contacts for this deadline')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='upcoming')
     asana_task_id = models.CharField(max_length=100, blank=True, help_text='Asana task GID if synced')
+
+    # Calculated date fields
+    is_calculated = models.BooleanField(
+        default=False,
+        help_text='Whether this date is calculated from a reference deadline',
+    )
+    reference_deadline = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dependents',
+        help_text='The deadline this date is calculated from',
+    )
+    offset_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Number of days offset from reference deadline',
+    )
+    day_type = models.CharField(
+        max_length=10,
+        choices=DAY_TYPE_CHOICES,
+        default='calendar',
+        blank=True,
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -164,6 +221,29 @@ class Deadline(models.Model):
             'normal': 'success',
         }
         return colors.get(self.urgency, 'secondary')
+
+    def recalculate_date(self):
+        """Recalculate this deadline's date from its reference deadline."""
+        if not self.is_calculated or not self.reference_deadline or self.offset_days is None:
+            return False
+        base_date = self.reference_deadline.date
+        if self.day_type == 'business':
+            self.date = add_business_days(base_date, self.offset_days)
+        else:
+            self.date = base_date + datetime.timedelta(days=self.offset_days)
+        return True
+
+    def recalculate_dependents(self, visited=None):
+        """Recalculate all deadlines that depend on this one (cascading)."""
+        if visited is None:
+            visited = set()
+        if self.pk in visited:
+            return  # Prevent circular references
+        visited.add(self.pk)
+        for dep in self.dependents.filter(is_calculated=True):
+            if dep.recalculate_date():
+                dep.save()
+                dep.recalculate_dependents(visited=visited)
 
 
 class ReminderLog(models.Model):
